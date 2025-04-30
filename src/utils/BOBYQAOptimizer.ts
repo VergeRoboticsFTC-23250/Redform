@@ -1,5 +1,3 @@
-import numeric from 'numeric';
-
 interface OptimizationResult {
   point: number[];
   value: number;

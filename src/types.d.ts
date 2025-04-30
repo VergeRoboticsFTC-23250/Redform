@@ -32,8 +32,9 @@ type ControlPoint = BasePoint;
 
 interface Line {
   endPoint: Point;
-  controlPoints: ControlPoint[];
+  controlPoints: BasePoint[];
   color: string;
+  name?: string; // Add optional name property
 }
 
 interface FPASettings {

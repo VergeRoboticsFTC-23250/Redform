@@ -54,6 +54,8 @@
   lineGroup.id = "line-group";
   let pointGroup = new Two.Group();
   pointGroup.id = "point-group";
+  let nameGroup = new Two.Group(); // Group for line names
+  nameGroup.id = "name-group";
 
   let startPoint: Point = {
     x: 8,
@@ -134,11 +136,14 @@
 
   $: path = (() => {
     let _path: (Path | PathLine)[] = [];
+    nameGroup.remove(nameGroup.children); // Clear old names before adding new ones
 
     lines.forEach((line, idx) => {
       let _startPoint = idx === 0 ? startPoint : lines[idx - 1].endPoint;
 
       let lineElem: Path | PathLine;
+      let midPoint: BasePoint; // To position the name
+
       if (line.controlPoints.length > 2) {
         // Approximate an n-degree bezier curve by sampling it at 100 points
         const samples = 100;
@@ -152,6 +157,10 @@
 
         lineElem = new Two.Path(points);
         lineElem.automatic = false;
+        // Calculate midpoint for n-degree Bezier (approximate)
+        const midSamplePoint = getCurvePoint(0.5, cps);
+        midPoint = { x: x(midSamplePoint.x), y: y(midSamplePoint.y) };
+
       } else if (line.controlPoints.length > 0) {
         let cp1 = line.controlPoints[1]
           ? line.controlPoints[0]
@@ -186,6 +195,13 @@
 
         lineElem = new Two.Path(points);
         lineElem.automatic = false;
+        // Calculate midpoint for cubic Bezier
+        const t = 0.5;
+        const mt = 1 - t;
+        midPoint = {
+          x: mt * mt * mt * x(_startPoint.x) + 3 * mt * mt * t * x(cp1.x) + 3 * mt * t * t * x(cp2.x) + t * t * t * x(line.endPoint.x),
+          y: mt * mt * mt * y(_startPoint.y) + 3 * mt * mt * t * y(cp1.y) + 3 * mt * t * t * y(cp2.y) + t * t * t * y(line.endPoint.y)
+        };
       } else {
         lineElem = new Two.Line(
           x(_startPoint.x),
@@ -193,6 +209,11 @@
           x(line.endPoint.x),
           y(line.endPoint.y)
         );
+        // Calculate midpoint for straight line
+        midPoint = {
+          x: (x(_startPoint.x) + x(line.endPoint.x)) / 2,
+          y: (y(_startPoint.y) + y(line.endPoint.y)) / 2
+        };
       }
 
       lineElem.id = `line-${idx + 1}`;
@@ -201,6 +222,20 @@
       lineElem.noFill();
 
       _path.push(lineElem);
+
+      // Add name text if it exists
+      if (line.name) {
+        const nameText = new Two.Text(line.name, midPoint.x, midPoint.y - 10); // Position slightly above midpoint
+        nameText.id = `name-${idx + 1}`;
+        nameText.size = 16; // Increased font size
+        nameText.family = 'Arial, sans-serif'; // Set font family
+        nameText.weight = 500; // Set font weight
+        nameText.fill = line.color;
+        nameText.alignment = 'center';
+        nameText.baseline = 'bottom';
+        nameText.noStroke();
+        nameGroup.add(nameText); // Add text to the name group instead of path array
+      }
     });
 
     return _path;
@@ -266,6 +301,7 @@
 
     two.add(...path);
     two.add(...points);
+    two.add(nameGroup); // Add the name group here
 
     two.update();
   })();
@@ -344,16 +380,19 @@
 
         const { x: xPos, y: yPos } = getMousePos(evt, two.renderer.domElement);
 
+        const roundedX = Math.round(x.invert(xPos) * 10) / 10;
+        const roundedY = Math.round(y.invert(yPos) * 10) / 10;
+
         if (line === -1) {
-          startPoint.x = x.invert(xPos);
-          startPoint.y = y.invert(yPos);
+          startPoint.x = roundedX;
+          startPoint.y = roundedY;
         } else {
           if (point === 0) {
-            lines[line].endPoint.x = x.invert(xPos);
-            lines[line].endPoint.y = y.invert(yPos);
+            lines[line].endPoint.x = roundedX;
+            lines[line].endPoint.y = roundedY;
           } else {
-            lines[line].controlPoints[point - 1].x = x.invert(xPos);
-            lines[line].controlPoints[point - 1].y = y.invert(yPos);
+            lines[line].controlPoints[point - 1].x = roundedX;
+            lines[line].controlPoints[point - 1].y = roundedY;
           }
         }
       } else {

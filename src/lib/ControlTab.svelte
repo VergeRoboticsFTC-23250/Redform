@@ -95,7 +95,12 @@
           <div
             class="font-semibold flex flex-row justify-start items-center gap-2"
           >
-            <p>Line {idx + 1}</p>
+            <input
+              type="text"
+              placeholder={`Line ${idx + 1}`}
+              bind:value={line.name}
+              class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28 text-sm font-semibold"
+            />
             <div
               class="size-2.5 rounded-full shadow-md"
               style={`background: ${line.color}`}
