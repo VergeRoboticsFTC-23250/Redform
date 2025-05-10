@@ -60,7 +60,7 @@
         <div>
           {robotHeading.toFixed(0) === "-0"
             ? "0"
-            : -robotHeading.toFixed(0)}&deg;
+            : robotHeading.toFixed(0)}&deg;
         </div>
       </div>
     </div>

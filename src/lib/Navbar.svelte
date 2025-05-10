@@ -85,41 +85,47 @@
     poseFieldDeclarations.push(`private Pose ${startPoseVarName} = new Pose(${startPoint.x.toFixed(3)}, ${startPoint.y.toFixed(3)}, ${startPointInitialHeadingRad});`);
 
     let previousPoseVarName = startPoseVarName;
-
+    let firstTangent = false;
     lines.forEach((line, idx) => {
       const lineNameJava = toJavaVarName(line.name, "path", idx + 1);
       const endPoseVarName = `${lineNameJava}Pose`;
-      
-      let endPointHeadingRad = "0.0"; 
+      let endPointHeadingRad = "0.0";
       if (line.endPoint.heading === "constant" && typeof line.endPoint.degrees === 'number') {
         endPointHeadingRad = `Math.toRadians(${line.endPoint.degrees.toFixed(3)})`;
       } else if (line.endPoint.heading === "linear" && typeof line.endPoint.endDeg === 'number') {
         endPointHeadingRad = `Math.toRadians(${line.endPoint.endDeg.toFixed(3)})`;
-      }
-      poseFieldDeclarations.push(
+      } 
+      if (endPointHeadingRad === "0.0" && !firstTangent) {
+        firstTangent = true;
+        poseFieldDeclarations.push(
+        `private Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad}); // tangential heading calculated in initPaths`
+      );
+      } else {
+        poseFieldDeclarations.push(
         `private Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad});`
       );
+      }
+      
 
       const pathSegmentVarName = lineNameJava;
-      let pathConstructorArgs = `${previousPoseVarName}, `;
       let pathType = "BezierLine";
-
+      let pathInit = "";
       if (line.controlPoints.length > 0) {
         pathType = "BezierCurve";
-        const controlPointsStr = line.controlPoints
-          .map(p => `new Point(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, Point.CARTESIAN)`)
-          .join(", ");
-        pathConstructorArgs += `${controlPointsStr}, `;
+        // For BezierCurve, all arguments must be Point objects
+        let points = [
+          `new Point(${previousPoseVarName}.getX(), ${previousPoseVarName}.getY(), Point.CARTESIAN)`
+        ];
+        points = points.concat(
+          line.controlPoints.map(p => `new Point(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, Point.CARTESIAN)`)
+        );
+        points.push(`new Point(${endPoseVarName}.getX(), ${endPoseVarName}.getY(), Point.CARTESIAN)`);
+        pathInit = `private Path ${pathSegmentVarName} = new Path(\n    new ${pathType}(\n        ${points.join(",\n        ")}\n    )\n);`;
+      } else {
+        // For BezierLine, use pose variables directly
+        pathInit = `private Path ${pathSegmentVarName} = new Path(\n    new ${pathType}(\n        ${previousPoseVarName},\n        ${endPoseVarName}\n    )\n);`;
       }
-      pathConstructorArgs += endPoseVarName;
-      
-      let headingInterpolationCall = "";
-      const { reverse } = line.endPoint;
-      const reversedCall = reverse ? ".setReversed(true)" : "";
-
-      pathFieldDeclarations.push(
-        `private Path ${pathSegmentVarName} = new Path(new ${pathType}(${pathConstructorArgs})${reversedCall};`
-      );
+      pathFieldDeclarations.push(pathInit);
       previousPoseVarName = endPoseVarName;
     });
 
@@ -129,7 +135,7 @@
       const endPoseVarName = `${lineNameJava}Pose`;
       const prevPoseVarName = idx === 0 ? startPoseVarName : toJavaVarName(lines[idx-1].name, "path", idx) + "Pose";
 
-      const { heading, degrees, startDeg, endDeg } = line.endPoint;
+      const { heading, degrees, startDeg, endDeg, reverse } = line.endPoint;
       let headingInterpolationSetup = "";
 
       if (heading === "constant") {
@@ -137,12 +143,15 @@
       } else if (heading === "linear") {
         headingInterpolationSetup = `${lineNameJava}.${headingTypeToFunctionName[heading]}(${prevPoseVarName}.getHeading(), ${endPoseVarName}.getHeading());`;
       } else if (heading === "tangential") {
-        headingInterpolationSetup = `${lineNameJava}.${headingTypeToFunctionName[heading]}();`;
+        headingInterpolationSetup = `${lineNameJava}.${headingTypeToFunctionName[heading]}();`
         // Update the pose heading after setting tangential interpolation
+        if (reverse) {
+          headingInterpolationSetup += `\n${lineNameJava}.setReversed(true);`;
+        }
         headingInterpolationSetup += `\n${endPoseVarName}.setHeading(${lineNameJava}.getEndTangent().getTheta());`;
       }
       if (headingInterpolationSetup) {
-        constructorOps.push(headingInterpolationSetup);
+        constructorOps.push(headingInterpolationSetup + "\n");
       }
     });
 

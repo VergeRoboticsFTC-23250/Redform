@@ -242,7 +242,8 @@
   })();
 
   let robotXY: BasePoint = { x: 0, y: 0 };
-  let robotHeading: number = startPoint.degrees ?? 0;
+  // Calculate robot heading (degrees)
+  $: robotHeading = startPoint.degrees;
 
   $: {
     let totalLineProgress = (lines.length * Math.min(percent, 99.999999999)) / 100;
@@ -254,34 +255,36 @@
     let robotInchesXY = getCurvePoint(linePercent, [_startPoint, ...currentLine.controlPoints, currentLine.endPoint]);
     robotXY = { x: x(robotInchesXY.x), y: y(robotInchesXY.y) };
 
-    switch (currentLine.endPoint.heading) {
-      case "linear":
-        robotHeading = -shortestRotation(
-          currentLine.endPoint.startDeg,
-          currentLine.endPoint.endDeg,
-          linePercent
-        );
-        break;
-      case "constant":
-        robotHeading = -currentLine.endPoint.degrees;
-        break;
-      case "tangential":
-        const nextPointInches = getCurvePoint(
-          linePercent + (currentLine.endPoint.reverse ? -0.01 : 0.01),
-          [_startPoint, ...currentLine.controlPoints, currentLine.endPoint]
-        );
-        const nextPoint = { x: x(nextPointInches.x), y: y(nextPointInches.y) };
+    if (percent === 0) {
+      robotHeading = startPoint.degrees ?? 0;
+    } else {
+      switch (currentLine.endPoint.heading) {
+        case "linear":
+          robotHeading = -shortestRotation(
+            currentLine.endPoint.startDeg,
+            currentLine.endPoint.endDeg,
+            linePercent
+          );
+          break;
+        case "constant":
+          robotHeading = -currentLine.endPoint.degrees;
+          break;
+        case "tangential":
+          const nextPointInches = getCurvePoint(
+            linePercent + (currentLine.endPoint.reverse ? -0.01 : 0.01),
+            [_startPoint, ...currentLine.controlPoints, currentLine.endPoint]
+          );
+          const nextPoint = { x: x(nextPointInches.x), y: y(nextPointInches.y) };
 
-        const dx = nextPoint.x - robotXY.x;
-        const dy = nextPoint.y - robotXY.y;
+          const dx = nextPoint.x - robotXY.x;
+          const dy = nextPoint.y - robotXY.y;
 
-        if (dx !== 0 || dy !== 0) {
-          const angle = Math.atan2(dy, dx);
-
-          robotHeading = radiansToDegrees(angle);
-        }
-
-        break;
+          if (dx !== 0 || dy !== 0) {
+            const angle = Math.atan2(dy, dx);
+            robotHeading = radiansToDegrees(angle);
+          }
+          break;
+      }
     }
   }
 
