@@ -60,52 +60,110 @@
       tangential: "setTangentHeadingInterpolation",
     };
 
-    let file = `
-    public class GeneratedPath {
-      public GeneratedPath() {
-        PathBuilder builder = new PathBuilder();
-
-        builder${lines
-          .map(
-            (line, idx) => `.addPath(  // Line ${idx + 1}
-              ${line.controlPoints.length === 0 ? `new BezierLine` : `new BezierCurve`}(
-                ${
-                  idx === 0
-                    ? `new Point(${startPoint.x.toFixed(3)}, ${startPoint.y.toFixed(3)}, Point.CARTESIAN),`
-                    : `new Point(${lines[idx - 1].endPoint.x.toFixed(3)}, ${lines[idx - 1].endPoint.y.toFixed(3)}, Point.CARTESIAN),`
-                }
-                ${
-                  line.controlPoints.length > 0
-                    ? `${line.controlPoints
-                        .map(
-                          (point) =>
-                            `new Point(${point.x.toFixed(3)}, ${point.y.toFixed(3)}, Point.CARTESIAN)`
-                        )
-                        .join(",\n")},`
-                    : ""
-                }
-                new Point(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, Point.CARTESIAN)
-              )
-            ).${headingTypeToFunctionName[line.endPoint.heading]}(${line.endPoint.heading === "constant" ? `Math.toRadians(${line.endPoint.degrees})` : line.endPoint.heading === "linear" ? `Math.toRadians(${line.endPoint.startDeg}), Math.toRadians(${line.endPoint.endDeg})` : ""})
-            ${line.endPoint.reverse ? ".setReversed(true)" : ""}
-          `
-          )
-          .join("\n")};
+    const toJavaVarName = (name: string | undefined, defaultPrefix: string, index: number | string) => {
+      let baseName = name;
+      // Ensure baseName is a string before trying to replace spaces or test regex
+      if (typeof baseName === 'string' && baseName.trim() !== '') {
+        baseName = baseName.replace(/\s+/g, '_'); // Replace all whitespace sequences with a single underscore
+        if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(baseName) && baseName !== "_") {
+          // Basic check for Java keywords (add more if needed)
+          const keywords = new Set(["abstract", "continue", "for", "new", "switch", "assert", "default", "goto", "package", "synchronized", "boolean", "do", "if", "private", "this", "break", "double", "implements", "protected", "throw", "byte", "else", "import", "public", "throws", "case", "enum", "instanceof", "return", "transient", "catch", "extends", "int", "short", "try", "char", "final", "interface", "static", "void", "class", "finally", "long", "strictfp", "volatile", "const", "float", "native", "super", "while"]);
+          if (!keywords.has(baseName)) {
+            return baseName;
+          }
+        }
       }
-    }
-    `;
+      return `${defaultPrefix}${index}`;
+    };
 
-    await prettier
-      .format(file, {
-        parser: "java",
-        plugins: [prettierJavaPlugin],
-      })
-      .then((res) => {
-        exportedCode = res;
-      })
-      .catch((e) => {
-        console.error(e);
-      });
+    let poseFieldDeclarations: string[] = [];
+    let pathFieldDeclarations: string[] = [];
+
+    // Start Pose
+    const startPoseVarName = "startPose";
+    let startPointInitialHeadingRad = "0.0";
+    if (startPoint.heading === "constant" && typeof startPoint.degrees === 'number') {
+        startPointInitialHeadingRad = `Math.toRadians(${startPoint.degrees.toFixed(3)})`;
+    } else if (startPoint.heading === "linear" && typeof startPoint.startDeg === 'number') {
+        startPointInitialHeadingRad = `Math.toRadians(${startPoint.startDeg.toFixed(3)})`;
+    }
+    poseFieldDeclarations.push(`private Pose ${startPoseVarName} = new Pose(${startPoint.x.toFixed(3)}, ${startPoint.y.toFixed(3)}, ${startPointInitialHeadingRad});`);
+
+    let previousPoseVarName = startPoseVarName;
+
+    lines.forEach((line, idx) => {
+      const lineNameJava = toJavaVarName(line.name, "path", idx + 1);
+      const endPoseVarName = `${lineNameJava}Pose`;
+      
+      let endPointHeadingRad = "0.0"; 
+      if (line.endPoint.heading === "constant" && typeof line.endPoint.degrees === 'number') {
+        endPointHeadingRad = `Math.toRadians(${line.endPoint.degrees.toFixed(3)})`;
+      } else if (line.endPoint.heading === "linear" && typeof line.endPoint.endDeg === 'number') {
+        endPointHeadingRad = `Math.toRadians(${line.endPoint.endDeg.toFixed(3)})`;
+      }
+      poseFieldDeclarations.push(
+        `private Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad});`
+      );
+
+      const pathSegmentVarName = lineNameJava;
+      let pathConstructorArgs = `${previousPoseVarName}, `;
+      let pathType = "BezierLine";
+
+      if (line.controlPoints.length > 0) {
+        pathType = "BezierCurve";
+        const controlPointsStr = line.controlPoints
+          .map(p => `new Point(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, Point.CARTESIAN)`)
+          .join(", ");
+        pathConstructorArgs += `${controlPointsStr}, `;
+      }
+      pathConstructorArgs += endPoseVarName;
+      
+      let headingInterpolationCall = "";
+      const { reverse } = line.endPoint;
+      const reversedCall = reverse ? ".setReversed(true)" : "";
+
+      pathFieldDeclarations.push(
+        `private Path ${pathSegmentVarName} = new Path(new ${pathType}(${pathConstructorArgs})${reversedCall};`
+      );
+      previousPoseVarName = endPoseVarName;
+    });
+
+    let constructorOps: string[] = [];
+    lines.forEach((line, idx) => {
+      const lineNameJava = toJavaVarName(line.name, "path", idx + 1);
+      const endPoseVarName = `${lineNameJava}Pose`;
+      const prevPoseVarName = idx === 0 ? startPoseVarName : toJavaVarName(lines[idx-1].name, "path", idx) + "Pose";
+
+      const { heading, degrees, startDeg, endDeg } = line.endPoint;
+      let headingInterpolationSetup = "";
+
+      if (heading === "constant") {
+        headingInterpolationSetup = `${lineNameJava}.${headingTypeToFunctionName[heading]}(${endPoseVarName}.getHeading());`;
+      } else if (heading === "linear") {
+        headingInterpolationSetup = `${lineNameJava}.${headingTypeToFunctionName[heading]}(${prevPoseVarName}.getHeading(), ${endPoseVarName}.getHeading());`;
+      } else if (heading === "tangential") {
+        headingInterpolationSetup = `${lineNameJava}.${headingTypeToFunctionName[heading]}();`;
+        // Update the pose heading after setting tangential interpolation
+        headingInterpolationSetup += `\n${endPoseVarName}.setHeading(${lineNameJava}.getEndTangent().getTheta());`;
+      }
+      if (headingInterpolationSetup) {
+        constructorOps.push(headingInterpolationSetup);
+      }
+    });
+
+    let fileContent = `// Poses
+${poseFieldDeclarations.join("\n")}
+
+// Paths
+${pathFieldDeclarations.join("\n")}
+
+// TODO run in opmode init
+public void initPaths() {
+${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
+}
+`;
+
+    exportedCode = fileContent;
 
     dialogOpen = true;
   }
@@ -121,18 +179,18 @@
 </svelte:head>
 
 <div
-  class="absolute top-0 left-0 w-full bg-neutral-50 dark:bg-neutral-900 shadow-md flex flex-row justify-between items-center px-6 py-4 border-b-[0.75px] border-[#b300e6]"
+  class="absolute top-0 left-0 w-full bg-neutral-50 dark:bg-neutral-900 shadow-md flex flex-row justify-between items-center px-6 py-4 border-b-[0.75px] border-[#e33a46]"
 >
   <div class="flex flex-row justify-start items-center gap-2">
     <div class="font-semibold flex flex-col justify-start items-start">
-      <div>Pedro Pathing Visualizer</div>
+      <div>Redform</div>
 
     </div>
     <a
       target="_blank"
       rel="norefferer"
       title="GitHub Repo"
-      href="https://github.com/Pedro-Pathing/Visualizer"
+      href="https://github.com/VergeRoboticsFTC-23250/Redform"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -309,7 +367,7 @@
     >
       <div class="flex flex-row justify-between items-center w-full">
         <p class="text-sm font-light text-neutral-700 dark:text-neutral-400">
-          Here is the generated code for this path:
+          Here is the generated code:
         </p>
         <button
           class=""
