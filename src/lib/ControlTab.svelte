@@ -86,6 +86,15 @@
           class="pl-1.5 rounded-md bg-neutral-100 border-[0.5px] focus:outline-none w-28 dark:bg-neutral-950 dark:border-neutral-700"
           step="0.1"
         />
+        <div class="font-extralight">Heading:</div>
+        <input
+          bind:value={startPoint.degrees}
+          min="-180"
+          max="180"
+          type="number"
+          class="pl-1.5 rounded-md bg-neutral-100 border-[0.5px] focus:outline-none w-28 dark:bg-neutral-950 dark:border-neutral-700"
+          step="0.1"
+        />
       </div>
     </div>
 

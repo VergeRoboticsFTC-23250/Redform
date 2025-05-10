@@ -242,7 +242,7 @@
   })();
 
   let robotXY: BasePoint = { x: 0, y: 0 };
-  let robotHeading: number = 0;
+  let robotHeading: number = startPoint.degrees ?? 0;
 
   $: {
     let totalLineProgress = (lines.length * Math.min(percent, 99.999999999)) / 100;
