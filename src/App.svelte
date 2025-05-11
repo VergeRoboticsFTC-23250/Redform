@@ -32,6 +32,10 @@
 
   let percent: number = 0;
 
+  // Local storage keys
+  const LOCAL_STORAGE_START_POINT_KEY = 'redform_trajectory_startPoint';
+  const LOCAL_STORAGE_LINES_KEY = 'redform_trajectory_lines';
+
 
 
   /**
@@ -57,20 +61,45 @@
   let nameGroup = new Two.Group(); // Group for line names
   nameGroup.id = "name-group";
 
-  let startPoint: Point = {
+  // Reactive statements to save to localStorage on change
+  $: {
+    if (typeof localStorage !== 'undefined' && startPoint) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_START_POINT_KEY, JSON.stringify(startPoint));
+      } catch (e) {
+        console.error("Error saving startPoint to localStorage:", e);
+      }
+    }
+  }
+
+  $: {
+    if (typeof localStorage !== 'undefined' && lines) {
+      try {
+        localStorage.setItem(LOCAL_STORAGE_LINES_KEY, JSON.stringify(lines));
+      } catch (e) {
+        console.error("Error saving lines to localStorage:", e);
+      }
+    }
+  }
+
+  // Default initial values for trajectory
+  const defaultStartPointData: Point = {
     x: 8,
     y: 80,
-    heading: "linear",
-    startDeg: 0,
-    endDeg: 0
+    heading: "constant",
+    degrees: 0,
   };
-  let lines: Line[] = [
+
+  const defaultLinesData: Line[] = [
     {
-      endPoint: { x: 36, y: 80, heading: "linear", startDeg: 0, endDeg: 0 },
+      endPoint: { x: 36, y: 80, heading: "constant", degrees: 0 },
       controlPoints: [],
-      color: getRandomColor(),
+      color: getRandomColor(), // getRandomColor is imported
     },
   ];
+
+  let startPoint: Point = _.cloneDeep(defaultStartPointData); // lodash (_) is imported
+  let lines: Line[] = _.cloneDeep(defaultLinesData);
 
   $: points = (() => {
     let _points = [];
@@ -243,7 +272,7 @@
 
   let robotXY: BasePoint = { x: 0, y: 0 };
   // Calculate robot heading (degrees)
-  $: robotHeading = startPoint.degrees;
+  $: robotHeading = (((startPoint.degrees ?? 0) % 360) + 360) % 360;
 
   $: {
     let totalLineProgress = (lines.length * Math.min(percent, 99.999999999)) / 100;
@@ -255,19 +284,15 @@
     let robotInchesXY = getCurvePoint(linePercent, [_startPoint, ...currentLine.controlPoints, currentLine.endPoint]);
     robotXY = { x: x(robotInchesXY.x), y: y(robotInchesXY.y) };
 
-    if (percent === 0) {
-      robotHeading = startPoint.degrees ?? 0;
+    if (x.invert(robotInchesXY.x) === startPoint.x && y.invert(robotInchesXY.y) === startPoint.y) {
+      robotHeading = ((startPoint.degrees ?? 0) % 360 + 360) % 360;
     } else {
       switch (currentLine.endPoint.heading) {
         case "linear":
-          robotHeading = -shortestRotation(
-            currentLine.endPoint.startDeg,
-            currentLine.endPoint.endDeg,
-            linePercent
-          );
+          robotHeading = ((-shortestRotation(currentLine.endPoint.startDeg, currentLine.endPoint.endDeg, linePercent) % 360) + 360) % 360;
           break;
         case "constant":
-          robotHeading = -currentLine.endPoint.degrees;
+          robotHeading = ((-currentLine.endPoint.degrees % 360) + 360) % 360;
           break;
         case "tangential":
           const nextPointInches = getCurvePoint(
@@ -281,7 +306,7 @@
 
           if (dx !== 0 || dy !== 0) {
             const angle = Math.atan2(dy, dx);
-            robotHeading = radiansToDegrees(angle);
+            robotHeading = ((radiansToDegrees(angle) % 360) + 360) % 360;
           }
           break;
       }
@@ -365,6 +390,57 @@
   }
 
   onMount(() => {
+    // Load trajectory from localStorage
+    if (typeof localStorage !== 'undefined') {
+      const savedStartPoint = localStorage.getItem(LOCAL_STORAGE_START_POINT_KEY);
+      if (savedStartPoint) {
+        try {
+          const parsedStartPoint = JSON.parse(savedStartPoint);
+          // Basic validation for startPoint structure
+          if (typeof parsedStartPoint === 'object' && parsedStartPoint !== null && 'x' in parsedStartPoint && 'y' in parsedStartPoint && 'heading' in parsedStartPoint) {
+            startPoint = parsedStartPoint;
+          } else {
+            console.error("Invalid startPoint data structure from localStorage. Using defaults.");
+            localStorage.removeItem(LOCAL_STORAGE_START_POINT_KEY); // Clear invalid data
+            startPoint = _.cloneDeep(defaultStartPointData); // Fallback to default
+          }
+        } catch (e) {
+          console.error("Error parsing saved startPoint from localStorage:", e);
+          localStorage.removeItem(LOCAL_STORAGE_START_POINT_KEY); // Clear corrupted data
+          startPoint = _.cloneDeep(defaultStartPointData); // Fallback to default
+        }
+      }
+
+      const savedLines = localStorage.getItem(LOCAL_STORAGE_LINES_KEY);
+      if (savedLines) {
+        try {
+          const parsedLines = JSON.parse(savedLines);
+          // Basic validation for lines structure
+          if (Array.isArray(parsedLines) && parsedLines.every(line => typeof line === 'object' && line !== null && 'endPoint' in line && 'controlPoints' in line)) {
+            lines = parsedLines;
+            // Ensure lines have colors, as older saved data might not
+            lines.forEach(line => {
+              if (!line.color) {
+                line.color = getRandomColor();
+              }
+            });
+          } else {
+            console.error("Invalid lines data structure from localStorage. Using defaults.");
+            localStorage.removeItem(LOCAL_STORAGE_LINES_KEY); // Clear invalid data
+            lines = _.cloneDeep(defaultLinesData); // Fallback to default
+          }
+        } catch (e) {
+          console.error("Error parsing saved lines from localStorage:", e);
+          localStorage.removeItem(LOCAL_STORAGE_LINES_KEY); // Clear corrupted data
+          lines = _.cloneDeep(defaultLinesData); // Fallback to default
+        }
+      }
+    } else {
+      // Fallback to defaults if localStorage is not available
+      startPoint = _.cloneDeep(defaultStartPointData);
+      lines = _.cloneDeep(defaultLinesData);
+    }
+
     two = new Two({
       fitted: true,
       type: Two.Types.svg,
@@ -436,7 +512,7 @@
     const url = URL.createObjectURL(blob);
 
     linkObj.href = url;
-    linkObj.download = "trajectory.pp";
+    linkObj.download = "trajectory.txt";
 
     document.body.appendChild(linkObj);
 
@@ -585,6 +661,7 @@ hotkeys('s', function(event, handler){
     </div>
   </div>
   <ControlTab
+    bind:robotHeading
     bind:playing
     {play}
     {pause}
@@ -592,10 +669,8 @@ hotkeys('s', function(event, handler){
     bind:lines
     bind:robotWidth
     bind:robotHeight
-    bind:settings
     bind:percent
     bind:robotXY
-    bind:robotHeading
     {x}
     {y}
     {fpa}

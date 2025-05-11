@@ -1,5 +1,5 @@
 <script lang="ts">
-  import _ from "lodash";
+  import _, { get } from "lodash";
   import { getRandomColor } from "../utils";
 
   export let percent: number;
@@ -15,7 +15,6 @@
   export let x: d3.ScaleLinear<number, number, number>;
   export let y: d3.ScaleLinear<number, number, number>;
   export let fpa: (arg0:FPALine) => Line;
-  export let settings: FPASettings;
 </script>
 
 <div class="flex-1 flex flex-col justify-start items-center gap-2 h-full">
@@ -28,23 +27,28 @@
         <div class="font-extralight">Robot Width:</div>
         <input
           bind:value={robotWidth}
-          on:change={() => {
-            settings.rWidth = robotWidth;
+          on:input={() => {
+            if (robotWidth > 18) robotWidth = 18;
+            else if (robotWidth < 1 && robotWidth != undefined) robotWidth = 1;
           }}
+          max="18"
+          min="1"
+          step="0.5"
           type="number"
           class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-16"
-          step="1"
-
         />
         <div class="font-extralight">Robot Height:</div>
         <input
           bind:value={robotHeight}
-          on:change={() => {
-            settings.rHeight = robotHeight;
+          on:input={() => {
+            if (robotHeight > 18) robotHeight = 18;
+            else if (robotHeight < 1 && robotHeight != undefined) robotHeight = 1;
           }}
+          max="18"
+          min="1"
+          step="0.5"
           type="number"
           class="pl-1.5 rounded-md bg-neutral-100 border-[0.5px] focus:outline-none w-16 dark:bg-neutral-950 dark:border-neutral-700"
-          step="1"
         />
       </div>
     </div>
@@ -58,9 +62,11 @@
         <div class="w-16">{y.invert(robotXY.y).toFixed(3)}</div>
         <div class="font-extralight">Heading:</div>
         <div>
-          {robotHeading.toFixed(0) === "-0"
+          {!robotHeading ? "0" : robotHeading.toFixed(0) === "-0"
             ? "0"
-            : robotHeading.toFixed(0)}&deg;
+            : ((360-robotHeading).toFixed(0)) === "360"
+              ? "0" 
+              : (360-robotHeading).toFixed(0)}°
         </div>
       </div>
     </div>
@@ -71,6 +77,10 @@
         <div class="font-extralight">X:</div>
         <input
           bind:value={startPoint.x}
+          on:input={() => {
+            if (startPoint.x > 144) startPoint.x = 144;
+            else if (startPoint.x < 0 && startPoint.x != undefined) startPoint.x = 0;
+          }}
           min="0"
           max="144"
           type="number"
@@ -80,6 +90,10 @@
         <div class="font-extralight">Y:</div>
         <input
           bind:value={startPoint.y}
+          on:input={() => {
+            if (startPoint.y > 144) startPoint.y = 144;
+            else if (startPoint.y < 0 && startPoint.y != undefined) startPoint.y = 0;
+          }}
           min="0"
           max="144"
           type="number"
@@ -89,8 +103,8 @@
         <div class="font-extralight">Heading:</div>
         <input
           bind:value={startPoint.degrees}
-          min="-180"
-          max="180"
+          min="-360"
+          max="360"
           type="number"
           class="pl-1.5 rounded-md bg-neutral-100 border-[0.5px] focus:outline-none w-28 dark:bg-neutral-950 dark:border-neutral-700"
           step="0.1"
@@ -119,11 +133,26 @@
             <button
               title="Add Control Point"
               on:click={() => {
+                // Get start point based on whether this is first line or not
+                const startX = idx === 0 ? startPoint.x : lines[idx - 1].endPoint.x;
+                const startY = idx === 0 ? startPoint.y : lines[idx - 1].endPoint.y;
+                
+                // Calculate min/max bounds to form a square around start and end points
+                const minX = Math.min(startX, line.endPoint.x);
+                const maxX = Math.max(startX, line.endPoint.x);
+                const minY = Math.min(startY, line.endPoint.y);
+                const maxY = Math.max(startY, line.endPoint.y);
+                
+                // Add random point within the bounded square
                 line.controlPoints = [
                   ...line.controlPoints,
                   {
-                    x: _.random(36, 108),
-                    y: _.random(36, 108),
+                    x: _.random(
+                      Math.round(Math.max(minX - 100.0 / Math.sqrt(Math.hypot(minX-maxX, minY-maxY)), 0) * 10) / 10.0,
+                      Math.round(Math.max(maxX - 100.0 / Math.sqrt(Math.hypot(minX-maxX, minY-maxY)), 0) * 10) / 10.0),
+                    y: _.random(
+                      Math.round(Math.max(minY - 100.0 / Math.sqrt(Math.hypot(minX-maxX, minY-maxY)), 0) * 10) / 10.0,
+                      Math.round(Math.max(maxY - 100.0 / Math.sqrt(Math.hypot(minX-maxX, minY-maxY)), 0) * 10) / 10.0),
                   },
                 ];
               }}
@@ -299,12 +328,19 @@
     {/each}
     <button
       on:click={() => {
+        const bias = 2.4;
+        const radius = 60;
+        const r = radius * Math.pow(_.random(1,true), 1/bias);
+        const theta = _.random(2 * Math.PI,true);
+        const x = lines[lines.length-1].endPoint.x + r * Math.cos(theta);
+        const y = lines[lines.length-1].endPoint.y + r * Math.sin(theta);
+
         lines = [
           ...lines,
           {
             endPoint: {
-              x: _.random(0, 144),
-              y: _.random(0, 144),
+              x: Math.round(Math.max(0, Math.min(144, x)) * 10) / 10.0,
+              y: Math.round(Math.max(0, Math.min(144, y)) * 10) / 10.0,
               heading: "tangential",
               reverse: false,
             },

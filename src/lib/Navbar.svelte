@@ -36,6 +36,7 @@
 
   let dialogOpen = false;
   let settingsOpen = false;
+  let resetDialogOpen = false;
 
   onMount(() => {
     darkMode.subscribe((val) => {
@@ -227,7 +228,7 @@ ${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
     <input
       id="file-input"
       type="file"
-      accept=".pp"
+      accept=".txt"
       on:change={loadFile}
       class="hidden"
     />
@@ -254,20 +255,7 @@ ${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
     <button
       title="Delete/Reset path"
       on:click={() => {
-       startPoint = {
-    x: 8,
-    y: 80,
-    heading: "linear",
-    startDeg: 0,
-    endDeg: 0
-  };
-  lines = [
-    {
-      endPoint: { x: 36, y: 80, heading: "linear", startDeg: 0, endDeg: 0 },
-      controlPoints: [],
-      color: getRandomColor(),
-    },
-  ];
+        resetDialogOpen = true;
       }}
     >
       <svg
@@ -360,6 +348,56 @@ ${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
     </button>
   </div>
 </div>
+
+{#if resetDialogOpen}
+  <div
+    transition:fade={{ duration: 500, easing: cubicInOut }}
+    class="bg-black bg-opacity-25 flex flex-col justify-center items-center absolute top-0 left-0 w-full h-full z-[1006]"
+  >
+    <div
+      transition:fly={{ duration: 500, easing: cubicInOut, y: 20 }}
+      class="flex flex-col justify-start items-start p-4 bg-white dark:bg-neutral-900 rounded-lg w-full max-w-md gap-3"
+    >
+      <p class="text-lg font-medium text-neutral-800 dark:text-neutral-200">Confirm Reset</p>
+      <p class="text-sm text-neutral-600 dark:text-neutral-400">
+        Are you sure you want to reset the path? This action cannot be undone.
+      </p>
+      <div class="flex flex-row justify-end items-center w-full gap-2 mt-2">
+        <button
+          class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded-md transition-colors"
+          on:click={() => {
+            resetDialogOpen = false;
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          class="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+          on:click={() => {
+            startPoint = {
+              x: 8,
+              y: 80,
+              heading: "linear",
+              startDeg: 0,
+              endDeg: 0
+            };
+            lines = [
+              {
+                endPoint: { x: 36, y: 80, heading: "linear", startDeg: 0, endDeg: 0 },
+                controlPoints: [],
+                color: getRandomColor(),
+              },
+            ];
+            resetDialogOpen = false;
+          }}
+        >
+          Reset Path
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if dialogOpen}
   <div
     transition:fade={{ duration: 500, easing: cubicInOut }}
