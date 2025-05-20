@@ -490,6 +490,65 @@
     two.renderer.domElement.addEventListener("mouseup", () => {
       isDown = false;
     });
+
+    // --- START OF NEW CODE ---
+    const doubleClickThreshold = 300; // ms
+    let singleClickTimer: number | null = null;
+
+    two.renderer.domElement.addEventListener("click", (evt: MouseEvent) => {
+      const { x: clickXCanvas, y: clickYCanvas } = getMousePos(evt, two.renderer.domElement);
+      const domainX = Math.round(x.invert(clickXCanvas) * 10) / 10;
+      const domainY = Math.round(y.invert(clickYCanvas) * 10) / 10;
+
+      const clickedElement = document.elementFromPoint(evt.clientX, evt.clientY);
+      if (clickedElement && clickedElement.id && clickedElement.id.startsWith("point-")) {
+        if (singleClickTimer) {
+          clearTimeout(singleClickTimer);
+          singleClickTimer = null;
+        }
+        return; // Click on an existing point, do nothing for add line/CP
+      }
+
+      if (singleClickTimer !== null) { // This is a double click
+        clearTimeout(singleClickTimer);
+        singleClickTimer = null;
+
+        // Perform double-click action
+        if (lines.length > 0) {
+          const lastLineIndex = lines.length - 1;
+          const newLines = lines.map((line, index) => {
+            if (index === lastLineIndex) {
+              const updatedControlPoints = [
+                ...(line.controlPoints || []),
+                { x: domainX, y: domainY, heading: "constant", degrees: 0 } as Point,
+              ];
+              return { ...line, controlPoints: updatedControlPoints };
+            }
+            return line;
+          });
+          lines = newLines;
+        } else {
+          // No lines yet, double click creates the first line segment
+          const newLine: Line = {
+            endPoint: { x: domainX, y: domainY, heading: "constant", degrees: 0 } as Point,
+            controlPoints: [],
+            color: getRandomColor(),
+          };
+          lines = [newLine];
+        }
+      } else { // This is a single click (or the first click of a potential pair)
+        singleClickTimer = window.setTimeout(() => {
+          const newLine: Line = {
+            endPoint: { x: domainX, y: domainY, heading: "constant", degrees: 0 } as Point,
+            controlPoints: [],
+            color: getRandomColor(),
+          };
+          lines = [...lines, newLine];
+          singleClickTimer = null; // Reset timer status
+        }, doubleClickThreshold);
+      }
+    });
+    // --- END OF NEW CODE ---
   });
 
   document.addEventListener("keydown", function (evt) {
