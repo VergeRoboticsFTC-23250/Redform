@@ -481,12 +481,272 @@ ${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
             </button>
           </div>
         </div>
-        <div class="relative w-full">
-          <Highlight language={java} code={exportedCode} class="w-full" style="max-height:60vh;overflow:hidden;" />
+        <div class="relative w-full" style="padding-bottom:2.5rem;">
+          <Highlight language={java} code={exportedCode} class="w-full export-code-window" style="max-height:60vh;overflow:auto;" />
           <button
             title="Copy code to clipboard"
             use:copy={exportedCode}
-            class="absolute bottom-2 right-2 opacity-45 hover:opacity-100 transition-all duration-200 z-10"
+            class="absolute bottom-2 right-2 opacity-45 hover:opacity-100 transition-all duration-200 z-20"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="size-6"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z"
+              />
+            </svg>
+          </button>
+        </div>
+        <button
+          title="Copy code to clipboard"
+          use:copy={exportedCode}
+          class="absolute bottom-2 right-2 opacity-45 hover:opacity-100 transition-all duration-200"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="currentColor"
+            class="size-6"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if settingsOpen}
+  <div
+          transition:fade={{ duration: 500, easing: cubicInOut }}
+          class="bg-black bg-opacity-25 flex flex-col justify-center items-center absolute top-0 left-0 w-full h-full z-[1005]"
+  >
+    <div
+            transition:fly={{ duration: 500, easing: cubicInOut, y: 20 }}
+            class="flex flex-col justify-start items-start p-4 bg-white dark:bg-neutral-900 rounded-lg w-full max-w-4xl gap-2.5"
+    >
+      <div class="flex flex-row justify-between items-center w-full">
+        <p class="text-sm font-light text-neutral-700 dark:text-neutral-400">
+          Settings:
+        </p>
+        <button
+                class=""
+                on:click={() => {
+                settingsOpen = false;
+                console.log(settings.vMax, settings.mass, settings.kFriction, settings.drag, settings.aVel, settings.bTolerance, settings.sTolerance, settings.rWidth, settings.rHeight);
+          }}
+        ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+                class="size-6 text-neutral-700 dark:text-neutral-400"
+        >
+          <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+          />
+        </svg>
+        </button>
+      </div>
+      <div class="relative w-full">
+        <div class="font-extralight">Mass:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.mass}
+        />
+      
+        <div class="font-extralight">Max Linear Velocity:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.vMax}
+        />
+        
+        <div class="font-extralight">Angular Velocity:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.aVel}
+        />
+          
+        <div class="font-extralight">Kinetic Friction:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.kFriction}
+        />
+            
+        <div class="font-extralight">Drag Coefficient:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.drag}
+        />
+              
+        <div class="font-extralight">Boundary Tolerance:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.bTolerance}
+        />
+                
+        <div class="font-extralight">Submersible Tolerance:</div>
+        <input
+                class="pl-1.5 rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none w-28"
+                step="0.1"
+                type="number"
+                min="0"
+                bind:value={settings.sTolerance}
+        />
+        </div>
+
+      </div>
+    </div>
+{/if}
+
+<style>
+  .export-code-window {
+    position: relative;
+    background: inherit;
+    border-radius: 0.5rem;
+    box-shadow: none;
+    padding-bottom: 2.5rem;
+  }
+</style>
+
+{#if resetDialogOpen}
+  <div
+    transition:fade={{ duration: 500, easing: cubicInOut }}
+    class="bg-black bg-opacity-25 flex flex-col justify-center items-center absolute top-0 left-0 w-full h-full z-[1006]"
+  >
+    <div
+      transition:fly={{ duration: 500, easing: cubicInOut, y: 20 }}
+      class="flex flex-col justify-start items-start p-4 bg-white dark:bg-neutral-900 rounded-lg w-full max-w-md gap-3"
+    >
+      <p class="text-lg font-medium text-neutral-800 dark:text-neutral-200">Confirm Reset</p>
+      <p class="text-sm text-neutral-600 dark:text-neutral-400">
+        Are you sure you want to reset the path? This action cannot be undone.
+      </p>
+      <div class="flex flex-row justify-end items-center w-full gap-2 mt-2">
+        <button
+          class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded-md transition-colors"
+          on:click={() => {
+            resetDialogOpen = false;
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          class="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-md transition-colors"
+          on:click={() => {
+            startPoint = {
+              x: 8,
+              y: 80,
+              heading: "linear",
+              startDeg: 0,
+              endDeg: 0
+            };
+            lines = [
+              {
+                endPoint: { x: 36, y: 80, heading: "linear", startDeg: 0, endDeg: 0 },
+                controlPoints: [],
+                color: getRandomColor(),
+              },
+            ];
+            resetDialogOpen = false;
+          }}
+        >
+          Reset Path
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if dialogOpen}
+  <div
+    transition:fade={{ duration: 500, easing: cubicInOut }}
+    class="bg-black bg-opacity-25 flex flex-col justify-center items-center absolute top-0 left-0 w-full h-full z-[1005]"
+  >
+    <div
+      transition:fly={{ duration: 500, easing: cubicInOut, y: 20 }}
+      class="flex flex-col justify-start items-start p-4 bg-white dark:bg-neutral-900 rounded-lg w-full max-w-4xl gap-2.5"
+    >
+      <div class="flex flex-row justify-between items-center w-full">
+        
+        
+      </div>
+
+      <div class="relative w-full flex flex-col gap-3">
+        <div class="flex flex-row justify-between items-center w-full mb-2">
+          <div class="flex flex-row items-center gap-2">
+            <p class="text-sm font-light text-neutral-700 dark:text-neutral-400">Here is the generated code:</p>
+          </div>
+          <div class="flex flex-row items-center gap-3">
+            <label for="coord-system" class="text-sm font-light text-neutral-700 dark:text-neutral-300">Coordinate System:</label>
+            <select id="coord-system" class="rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none px-2 py-1 text-sm" bind:value={coordSystem} on:change={exportToCode}>
+              <option value="pedro">Pedro</option>
+              <option value="ftc">FTC Standard</option>
+            </select>
+            <button
+              class="ml-2"
+              on:click={() => {
+                dialogOpen = false;
+              }}
+              title="Close"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+                class="size-6 text-neutral-700 dark:text-neutral-400"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="relative w-full" style="padding-bottom:2.5rem;">
+          <Highlight language={java} code={exportedCode} class="w-full export-code-window" style="max-height:60vh;overflow:auto;" />
+          <button
+            title="Copy code to clipboard"
+            use:copy={exportedCode}
+            class="absolute bottom-2 right-2 opacity-45 hover:opacity-100 transition-all duration-200 z-20"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
