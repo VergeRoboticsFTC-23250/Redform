@@ -708,7 +708,7 @@ hotkeys('s', function(event, handler){
       <img
         src="/fields/intothedeep.webp"
         alt="Field"
-        class="absolute top-0 left-0 w-full h-full rounded-lg z-10 pointer-events-none"
+        class="absolute top-0 left-0 w-full h-full rounded-lg z-10 pointer-events-none border-[#e33a46]"
       />
       <img
         src={"/robot.png"}

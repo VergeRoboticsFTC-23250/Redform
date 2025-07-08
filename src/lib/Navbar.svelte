@@ -54,7 +54,41 @@
 
   let exportedCode = "";
 
+  let coordSystem = "pedro";
+
+  function convertPedroToFTC(pose: { x: number; y: number; degrees: number }) {
+    // Normalize: subtract 72 from x and y
+    const normX = pose.x - 72;
+    const normY = pose.y - 72;
+    const headingRad = pose.degrees * Math.PI / 180;
+    // Rotate by -Math.PI/2
+    const x = normX * Math.cos(-Math.PI/2) - normY * Math.sin(-Math.PI/2);
+    const y = normX * Math.sin(-Math.PI/2) + normY * Math.cos(-Math.PI/2);
+    const heading = headingRad - Math.PI/2;
+    return { x, y, heading };
+  }
+
   async function exportToCode() {
+    if (coordSystem === "ftc") {
+      let pose2dDecls = ["// Poses"];
+      // Start pose
+      pose2dDecls.push(`public static Pose2d startPose = new Pose2d(${(startPoint.x - 72).toFixed(3)}, ${(startPoint.y - 72).toFixed(3)}, Math.toRadians(${startPoint.degrees}));`);
+      lines.forEach((line, idx) => {
+        const name = line.name && line.name.trim() !== "" ? line.name.replace(/\s+/g, "_") : `path${idx+1}`;
+        let headingExpr = "0";
+        if (line.endPoint.heading === "constant" && typeof line.endPoint.degrees === 'number') {
+          headingExpr = `Math.toRadians(${line.endPoint.degrees})`;
+        } else if (line.endPoint.heading === "linear" && typeof line.endPoint.endDeg === 'number') {
+          headingExpr = `Math.toRadians(${line.endPoint.endDeg})`;
+        } else if (line.endPoint.heading === "tangential") {
+          headingExpr = `0 /* WARNING: tangential heading not implemented */`;
+        }
+        pose2dDecls.push(`public static Pose2d ${name}Pose = new Pose2d(${(line.endPoint.x - 72).toFixed(3)}, ${(line.endPoint.y - 72).toFixed(3)}, ${headingExpr});`);
+      });
+      exportedCode = pose2dDecls.join("\n");
+      dialogOpen = true;
+      return;
+    }
     const headingTypeToFunctionName = {
       constant: "setConstantHeadingInterpolation",
       linear: "setLinearHeadingInterpolation",
@@ -83,7 +117,7 @@
     // Start Pose
     const startPoseVarName = "startPose";
     let startPointInitialHeadingRad = `Math.toRadians(${startPoint.degrees})`;
-    poseFieldDeclarations.push(`private Pose ${startPoseVarName} = new Pose(${startPoint.x.toFixed(3)}, ${startPoint.y.toFixed(3)}, ${startPointInitialHeadingRad});`);
+    poseFieldDeclarations.push(`public static Pose ${startPoseVarName} = new Pose(${startPoint.x.toFixed(3)}, ${startPoint.y.toFixed(3)}, ${startPointInitialHeadingRad});`);
 
     let previousPoseVarName = startPoseVarName;
     let firstTangent = false;
@@ -99,11 +133,11 @@
       if (endPointHeadingRad === "0.0" && !firstTangent) {
         firstTangent = true;
         poseFieldDeclarations.push(
-        `private Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad}); // tangential heading calculated in initPaths`
+        `public static Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad}); // tangential heading calculated in initPaths`
       );
       } else {
         poseFieldDeclarations.push(
-        `private Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad});`
+        `public static Pose ${endPoseVarName} = new Pose(${line.endPoint.x.toFixed(3)}, ${line.endPoint.y.toFixed(3)}, ${endPointHeadingRad});`
       );
       }
       
@@ -121,10 +155,10 @@
           line.controlPoints.map(p => `new Point(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, Point.CARTESIAN)`)
         );
         points.push(`new Point(${endPoseVarName}.getX(), ${endPoseVarName}.getY(), Point.CARTESIAN)`);
-        pathInit = `private Path ${pathSegmentVarName} = new Path(\n    new ${pathType}(\n        ${points.join(",\n        ")}\n    )\n);`;
+        pathInit = `public static Path ${pathSegmentVarName} = new Path(\n    new ${pathType}(\n        ${points.join(",\n        ")}\n    )\n);`;
       } else {
         // For BezierLine, use pose variables directly
-        pathInit = `private Path ${pathSegmentVarName} = new Path(\n    new ${pathType}(\n        ${previousPoseVarName},\n        ${endPoseVarName}\n    )\n);`;
+        pathInit = `public static Path ${pathSegmentVarName} = new Path(\n    new ${pathType}(\n        ${previousPoseVarName},\n        ${endPoseVarName}\n    )\n);`;
       }
       pathFieldDeclarations.push(pathInit);
       previousPoseVarName = endPoseVarName;
@@ -163,7 +197,7 @@ ${poseFieldDeclarations.join("\n")}
 ${pathFieldDeclarations.join("\n")}
 
 // TODO run in opmode init
-public void initPaths() {
+public static void initPaths() {
 ${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
 }
 `;
@@ -408,33 +442,68 @@ ${constructorOps.map(op => `    ${op.replace(/\n/g, '\n    ')}`).join("\n")}
       class="flex flex-col justify-start items-start p-4 bg-white dark:bg-neutral-900 rounded-lg w-full max-w-4xl gap-2.5"
     >
       <div class="flex flex-row justify-between items-center w-full">
-        <p class="text-sm font-light text-neutral-700 dark:text-neutral-400">
-          Here is the generated code:
-        </p>
-        <button
-          class=""
-          on:click={() => {
-            dialogOpen = false;
-          }}
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="2"
-            stroke="currentColor"
-            class="size-6 text-neutral-700 dark:text-neutral-400"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6 18 18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+        
+        
       </div>
 
-      <div class="relative w-full">
-        <Highlight language={java} code={exportedCode} class="w-full" />
+      <div class="relative w-full flex flex-col gap-3">
+        <div class="flex flex-row justify-between items-center w-full mb-2">
+          <div class="flex flex-row items-center gap-2">
+            <p class="text-sm font-light text-neutral-700 dark:text-neutral-400">Here is the generated code:</p>
+          </div>
+          <div class="flex flex-row items-center gap-3">
+            <label for="coord-system" class="text-sm font-light text-neutral-700 dark:text-neutral-300">Coordinate System:</label>
+            <select id="coord-system" class="rounded-md bg-neutral-100 dark:bg-neutral-950 dark:border-neutral-700 border-[0.5px] focus:outline-none px-2 py-1 text-sm" bind:value={coordSystem} on:change={exportToCode}>
+              <option value="pedro">Pedro</option>
+              <option value="ftc">FTC Standard</option>
+            </select>
+            <button
+              class="ml-2"
+              on:click={() => {
+                dialogOpen = false;
+              }}
+              title="Close"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+                class="size-6 text-neutral-700 dark:text-neutral-400"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18 18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="relative w-full">
+          <Highlight language={java} code={exportedCode} class="w-full" style="max-height:60vh;overflow:hidden;" />
+          <button
+            title="Copy code to clipboard"
+            use:copy={exportedCode}
+            class="absolute bottom-2 right-2 opacity-45 hover:opacity-100 transition-all duration-200 z-10"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="size-6"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8.25 7.5V6.108c0-1.135.845-2.098 1.976-2.192.373-.03.748-.057 1.123-.08M15.75 18H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08M15.75 18.75v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5A3.375 3.375 0 0 0 6.375 7.5H5.25m11.9-3.664A2.251 2.251 0 0 0 15 2.25h-1.5a2.251 2.251 0 0 0-2.15 1.586m5.8 0c.065.21.1.433.1.664v.75h-6V4.5c0-.231.035-.454.1-.664M6.75 7.5H4.875c-.621 0-1.125.504-1.125 1.125v12c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V16.5a9 9 0 0 0-9-9Z"
+              />
+            </svg>
+          </button>
+        </div>
         <button
           title="Copy code to clipboard"
           use:copy={exportedCode}
